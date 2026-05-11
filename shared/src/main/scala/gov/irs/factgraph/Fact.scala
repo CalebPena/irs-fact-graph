@@ -120,6 +120,11 @@ final class Fact(
     case PathItem.Wildcard :: _   => applyWildcard(pathItems, accComplete)
     case PathItem.Member(id) :: _ => applyMember(id, pathItems, accComplete)
     case PathItem.Unknown :: _    => applyUnknown(pathItems)
+    // Escape items are stripped from the head of a path by Path.popEscapes
+    // before reaching here (Dependency does that at runtime via fact.selfStack).
+    // A non-leading Escape or one reached without a stack falls through to
+    // Incomplete rather than crashing with a match error.
+    case PathItem.Escape(_) :: _  => MaybeVector(Result.Incomplete)
     case Nil                      => MaybeVector(Result(this, accComplete))
 
   private def applyChild(

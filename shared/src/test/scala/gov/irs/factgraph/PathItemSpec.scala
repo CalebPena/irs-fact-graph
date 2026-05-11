@@ -17,6 +17,12 @@ class PathItemSpec extends AnyFunSpec:
         assert(PathItem("?") == PathItem.Unknown)
         assert(PathItem("..") == PathItem.Parent)
       }
+
+      it("parses runs of ^ into Escape with the right level") {
+        assert(PathItem("^") == PathItem.Escape(1))
+        assert(PathItem("^^") == PathItem.Escape(2))
+        assert(PathItem("^^^") == PathItem.Escape(3))
+      }
     }
 
     describe(".toString") {
@@ -30,6 +36,18 @@ class PathItemSpec extends AnyFunSpec:
         assert(PathItem.Wildcard.toString == "*")
         assert(PathItem.Unknown.toString == "?")
         assert(PathItem.Parent.toString == "..")
+        assert(PathItem.Escape(1).toString == "^")
+        assert(PathItem.Escape(3).toString == "^^^")
+      }
+    }
+
+    describe(".isEscape") {
+      it("is true only for Escape items") {
+        assert(PathItem.Escape(1).isEscape)
+        assert(PathItem.Escape(2).isEscape)
+        assert(!PathItem("test").isEscape)
+        assert(!PathItem.Wildcard.isEscape)
+        assert(!PathItem.Parent.isEscape)
       }
     }
 
