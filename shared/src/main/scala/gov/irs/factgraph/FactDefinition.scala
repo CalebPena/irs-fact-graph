@@ -93,11 +93,6 @@ final class FactDefinition(
     case PathItem.Wildcard :: _    => applyWildcard(pathItems)
     case PathItem.Member(_) :: _   => MaybeVector(Result.Incomplete)
     case PathItem.Unknown :: _     => applyUnknown(pathItems)
-    // `^` (Escape) is normally stripped from the head of a path by
-    // Path.popEscapes before reaching here — Dependency does that at both
-    // build and runtime. A non-leading Escape (or one reached without a
-    // SelfStack in scope) has no meaningful target on this Factual, so
-    // surface Incomplete rather than throwing match-error.
     case PathItem.Escape(_) :: _   => MaybeVector(Result.Incomplete)
     case Nil                       => MaybeVector(Result.Complete(this))
 

@@ -5,12 +5,6 @@ import upickle.default.ReadWriter
 enum PathItem derives ReadWriter:
   case Child(key: Symbol)
   case Parent
-
-  // Pop `level` filter scopes when resolving a path. Written as `^` for one
-  // level, `^^` for two, etc. Each `^` jumps past one enclosing collection
-  // operator (Filter/IndexOf/Find) so an inner predicate can reach back to
-  // the surrounding collection-item that the outer fact is being evaluated
-  // for. See SelfStack for the runtime/construction threading.
   case Escape(level: Int)
 
   // Collections

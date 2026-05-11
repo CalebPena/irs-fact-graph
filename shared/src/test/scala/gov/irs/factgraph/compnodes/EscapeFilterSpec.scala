@@ -7,20 +7,10 @@ import gov.irs.factgraph.types.Collection
 import java.util.UUID
 import org.scalatest.funspec.AnyFunSpec
 
-/** Covers the `^` (Escape) PathItem — letting a Filter's predicate reach back
-  * to the outer collection-item that the surrounding fact is being evaluated
-  * for. Without `^` there's no way to express "for *this* member, filter
-  * /incomes by memberId == self" because Filter's predicate context shadows
-  * the outer Factual.
-  */
 class EscapeFilterSpec extends AnyFunSpec:
   describe("Escape (`^`) path token") {
     val dictionary = FactDictionary()
 
-    // /members collection — each member has a boolean flag /members/*/active.
-    // The per-member fact /members/*/anyMatchingIncome filters /incomes by
-    // "active" — which is on the OUTER member, reached via `^/active`. This
-    // exercises the construction-time and runtime self-stack threading.
     FactDefinition.fromConfig(
       FactConfigElement(
         "/members",
@@ -57,12 +47,6 @@ class EscapeFilterSpec extends AnyFunSpec:
       ),
     )(using dictionary)
 
-    // For each member, return the collection of incomes whose "eligible"
-    // flag matches *this member's* "active" flag. The predicate is
-    // <Dependency path="../eligible"/> AND <Dependency path="^/active"/>
-    // expressed via a single Filter over /incomes that reads `^/active`
-    // (the outer member's flag) — only when the outer member is active
-    // does any income pass.
     FactDefinition.fromConfig(
       FactConfigElement(
         "/members/*/matchingIncomes",
@@ -103,8 +87,6 @@ class EscapeFilterSpec extends AnyFunSpec:
       fact   <- result
     } fact.set(Collection(Vector(incomeOk, incomeBad)))
 
-    // Save the collections before setting per-member/per-income fields so
-    // the member/income facts resolve properly when we go to write them.
     graph.save()
 
     for {
@@ -126,13 +108,9 @@ class EscapeFilterSpec extends AnyFunSpec:
     graph.save()
 
     it("resolves to the outer collection-item from inside a Filter predicate") {
-      // For the active member: outer active = true, so income.eligible
-      // alone decides — only incomeOk passes.
       val active = graph(Path(s"/members/#$memberActive/matchingIncomes"))(0).get
       assert(active.get(0) == Result.Complete(Collection(Vector(incomeOk))))
 
-      // For the dormant member: outer active = false, so the All gate
-      // fails for every candidate income — empty filter result.
       val dormant = graph(Path(s"/members/#$memberDormant/matchingIncomes"))(0).get
       assert(dormant.get(0) == Result.Complete(Collection(Vector())))
     }

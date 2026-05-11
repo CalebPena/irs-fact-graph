@@ -21,10 +21,6 @@ trait Factual:
   def apply(path: Path): MaybeVector[Result[Factual]]
   def apply(key: PathItem): MaybeVector[Result[Factual]]
 
-  /** Stack of enclosing collection-item Factuals (from inside-out), built up
-    * by Filter / IndexOf / Find / etc. when they re-context the active
-    * Factual to one of their collection's items. Empty for ordinary facts.
-    * Dependency consults this when it sees a `^`-prefixed path. */
   def selfStack: SelfStack = SelfStack.empty
 
 object Factual:
