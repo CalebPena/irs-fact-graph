@@ -88,12 +88,13 @@ final class FactDefinition(
   private def apply(
       pathItems: List[PathItem],
   ): MaybeVector[Result[FactDefinition]] = pathItems match
-    case PathItem.Parent :: next => getNext(parent, next)
-    case PathItem.Child(_) :: _  => applyChild(pathItems)
-    case PathItem.Wildcard :: _  => applyWildcard(pathItems)
-    case PathItem.Member(_) :: _ => MaybeVector(Result.Incomplete)
-    case PathItem.Unknown :: _   => applyUnknown(pathItems)
-    case Nil                     => MaybeVector(Result.Complete(this))
+    case PathItem.Parent :: next   => getNext(parent, next)
+    case PathItem.Child(_) :: _    => applyChild(pathItems)
+    case PathItem.Wildcard :: _    => applyWildcard(pathItems)
+    case PathItem.Member(_) :: _   => MaybeVector(Result.Incomplete)
+    case PathItem.Unknown :: _     => applyUnknown(pathItems)
+    case PathItem.Escape(_) :: _   => MaybeVector(Result.Incomplete)
+    case Nil                       => MaybeVector(Result.Complete(this))
 
   private def applyChild(
       pathItems: List[PathItem],

@@ -1,6 +1,6 @@
 package gov.irs.factgraph.compnodes
 
-import gov.irs.factgraph.{ Expression, FactDictionary, Factual, Path, PathItem }
+import gov.irs.factgraph.{ Expression, FactDictionary, Factual, Path, PathItem, WithSelfStack }
 import gov.irs.factgraph.definitions.fact.{ CommonOptionConfigTraits, CompNodeConfigTrait }
 import gov.irs.factgraph.monads.*
 import gov.irs.factgraph.operators.CollectOperator
@@ -16,9 +16,16 @@ object Filter extends CompNodeFactory:
   ): CompNode =
     fact(path :+ PathItem.Wildcard)(0) match
       case Result.Complete(collectionItem) =>
+        // Push the fact's parent (not the fact itself): pushing `fact` would
+        // make `^/x` resolve against the host whose `value` is mid-init,
+        // recursing through its own `lazy val`.
+        val outerScope: Factual = fact(PathItem.Parent)(0) match
+          case Result.Complete(p) => p
+          case _                  => fact
+        val innerCtx = WithSelfStack.push(collectionItem, outerScope)
         CollectionNode(
           Expression
-            .Collect(path, cnBuilder(using collectionItem).expr, operator),
+            .Collect(path, cnBuilder(using innerCtx).expr, operator),
           Some(path),
         )
       case _ =>

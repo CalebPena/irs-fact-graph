@@ -120,6 +120,7 @@ final class Fact(
     case PathItem.Wildcard :: _   => applyWildcard(pathItems, accComplete)
     case PathItem.Member(id) :: _ => applyMember(id, pathItems, accComplete)
     case PathItem.Unknown :: _    => applyUnknown(pathItems)
+    case PathItem.Escape(_) :: _  => MaybeVector(Result.Incomplete)
     case Nil                      => MaybeVector(Result(this, accComplete))
 
   private def applyChild(

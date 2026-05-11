@@ -21,6 +21,8 @@ trait Factual:
   def apply(path: Path): MaybeVector[Result[Factual]]
   def apply(key: PathItem): MaybeVector[Result[Factual]]
 
+  def selfStack: SelfStack = SelfStack.empty
+
 object Factual:
   enum Size:
     case Single

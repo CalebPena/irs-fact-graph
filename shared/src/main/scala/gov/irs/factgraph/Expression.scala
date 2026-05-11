@@ -121,9 +121,10 @@ enum Expression[A]:
   )(using
       fact: Factual,
   ): MaybeVector[X] =
+    val (startFact, resolvedPath) = path.popEscapes(fact)
     for {
-      result <- fact(path)
-      vect <- f(result, fact.path, path)
+      result <- startFact(resolvedPath)
+      vect <- f(result, startFact.path, resolvedPath)
     } yield vect
 
   private object dependencies:
@@ -269,9 +270,13 @@ enum Expression[A]:
   def collect[X](path: Path, x: Expression[X], op: CollectOperator[A, X])(using
       fact: Factual,
   ): Result[A] =
+    val outerScope: Factual = fact(PathItem.Parent)(0) match
+      case Result.Complete(p) => p
+      case _                  => fact
+
     val vect = for {
       item <- fact(path :+ PathItem.Wildcard)
-      thunk <- x.getThunk(using item.get)
+      thunk <- x.getThunk(using WithSelfStack.push(item.get, outerScope))
     } yield (item.get.get(0).get.asInstanceOf[CollectionItem], thunk)
 
     op(vect)
