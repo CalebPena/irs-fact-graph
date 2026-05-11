@@ -44,28 +44,15 @@ final case class Path(private val _items: List[PathItem], absolute: Boolean):
         case PathItem.Member(uuid) => Some(uuid)
         case _                     => None
 
-  /** If this path begins with one or more `^` Escape items, peel them off
-    * and return the Factual the rest of the path should be resolved against
-    * (one entry deep into the SelfStack per escape level). Used by
-    * Dependency at both construction and runtime to honor `^/foo` style
-    * paths that reach back past an enclosing Filter scope.
-    *
-    * Falls through to (currentFact, this) when there's no escape prefix
-    * or when the SelfStack isn't deep enough — the caller's normal
-    * "fact not found" error path then takes over.
-    */
   def popEscapes(currentFact: Factual, selfStack: SelfStack): (Factual, Path) =
     items match
       case PathItem.Escape(n) :: rest =>
         selfStack.pop(n) match
           case Some((outerFact, _)) =>
-            // The remainder is relative to the popped outer Factual.
             (outerFact, new Path(rest.reverse, false))
           case None => (currentFact, this)
       case _ => (currentFact, this)
 
-  /** True when the head item is `^` — useful for callers that want to
-    * route differently for escape-prefixed paths without doing the pop. */
   def hasEscapePrefix: Boolean = items.headOption.exists(_.isEscape)
 
   def asAbstract: Path =

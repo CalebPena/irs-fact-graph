@@ -16,14 +16,9 @@ object Filter extends CompNodeFactory:
   ): CompNode =
     fact(path :+ PathItem.Wildcard)(0) match
       case Result.Complete(collectionItem) =>
-        // Push the fact's *parent* (not the fact itself) onto SelfStack so
-        // `^/x` inside the predicate resolves to `x` on the surrounding
-        // scope — typically the collection-item that the host fact is being
-        // evaluated for. Pushing `fact` itself would mean the popped target
-        // is the host fact whose `value` is in mid-init, and resolving any
-        // child path against it re-enters that same `lazy val` and stack-
-        // overflows. Falls back to `fact` when there's no parent (a
-        // top-level Filter), where `^` is essentially unusable anyway.
+        // Push the fact's parent (not the fact itself): pushing `fact` would
+        // make `^/x` resolve against the host whose `value` is mid-init,
+        // recursing through its own `lazy val`.
         val outerScope: Factual = fact(PathItem.Parent)(0) match
           case Result.Complete(p) => p
           case _                  => fact
