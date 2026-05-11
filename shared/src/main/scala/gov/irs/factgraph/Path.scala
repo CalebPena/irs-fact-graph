@@ -48,9 +48,8 @@ final case class Path(private val _items: List[PathItem], absolute: Boolean):
     items match
       case PathItem.Escape(n) :: rest =>
         selfStack.pop(n) match
-          case Some((outerFact, _)) =>
-            (outerFact, new Path(rest.reverse, false))
-          case None => (currentFact, this)
+          case Some(outerFact) => (outerFact, new Path(rest.reverse, false))
+          case None            => (currentFact, this)
       case _ => (currentFact, this)
 
   def asAbstract: Path =
