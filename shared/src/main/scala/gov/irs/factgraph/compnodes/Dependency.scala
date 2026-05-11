@@ -12,7 +12,7 @@ object Dependency extends CompNodeFactory:
   // is in scope when the Filter's predicate actually fires — each member of
   // the outer collection gets a different selfStack head at runtime.
   def apply(path: Path)(using fact: Factual): CompNode =
-    val (startFact, resolvedPath) = path.popEscapes(fact, fact.selfStack)
+    val (startFact, resolvedPath) = path.popEscapes(fact)
     startFact(resolvedPath)(0) match
       case Result.Complete(target) => target.value.dependency(path)
       case _                       =>

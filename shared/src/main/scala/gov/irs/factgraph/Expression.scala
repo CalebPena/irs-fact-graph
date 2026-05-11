@@ -121,7 +121,7 @@ enum Expression[A]:
   )(using
       fact: Factual,
   ): MaybeVector[X] =
-    val (startFact, resolvedPath) = path.popEscapes(fact, fact.selfStack)
+    val (startFact, resolvedPath) = path.popEscapes(fact)
     for {
       result <- startFact(resolvedPath)
       vect <- f(result, startFact.path, resolvedPath)
