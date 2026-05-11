@@ -53,8 +53,6 @@ final case class Path(private val _items: List[PathItem], absolute: Boolean):
           case None => (currentFact, this)
       case _ => (currentFact, this)
 
-  def hasEscapePrefix: Boolean = items.headOption.exists(_.isEscape)
-
   def asAbstract: Path =
     items.foldLeft(items.head match
       case PathItem.Parent => Path("")

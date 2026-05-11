@@ -48,7 +48,7 @@ object PathItem:
   val WildcardKey = "*"
   private val UnknownKey = "?"
   private val ParentKey = ".."
-  val EscapeKey: Char = '^'
+  private val EscapeKey: Char = '^'
 
   val MemberPrefix = '#'
 
