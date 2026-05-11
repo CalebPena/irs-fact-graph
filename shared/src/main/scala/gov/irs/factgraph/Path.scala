@@ -44,10 +44,10 @@ final case class Path(private val _items: List[PathItem], absolute: Boolean):
         case PathItem.Member(uuid) => Some(uuid)
         case _                     => None
 
-  def popEscapes(currentFact: Factual, selfStack: SelfStack): (Factual, Path) =
+  def popEscapes(currentFact: Factual): (Factual, Path) =
     items match
       case PathItem.Escape(n) :: rest =>
-        selfStack.pop(n) match
+        currentFact.selfStack.pop(n) match
           case Some(outerFact) => (outerFact, new Path(rest.reverse, false))
           case None            => (currentFact, this)
       case _ => (currentFact, this)
