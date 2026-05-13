@@ -15,6 +15,7 @@ final class FactDefinition(
     val path: Path,
     private val limitsBuilder: Factual ?=> Seq[Limit],
     val dictionary: FactDictionary,
+    val config: Option[FactConfigTrait] = None,
 ) extends Factual:
   given Factual = this
 
@@ -24,7 +25,14 @@ final class FactDefinition(
   def asTuple: (Path, FactDefinition) = (path, this)
 
   @JSExport
-  lazy val value: CompNode = cnBuilder
+  lazy val value: CompNode =
+    // Mark before `cnBuilder` runs so a self-referential Dependency built
+    // by the builder (recursive derived rule) can detect it's targeting an
+    // in-flight FactDefinition and produce a typed stub instead of
+    // re-entering this lazy val. See Dependency.apply / RecursiveDependency.
+    dictionary.valueInProgress.add(path)
+    try cnBuilder
+    finally dictionary.valueInProgress.remove(path)
 
   // Example prior to split: 'DollarNode(Aggregate(Dependency(/jobs/*/income),gov.irs.factgraph.compnodes.SumOperator@2))'
   @JSExport
@@ -42,9 +50,19 @@ final class FactDefinition(
     abstractPath,
   )
 
-  lazy val size: Factual.Size = value.getThunk match
-    case MaybeVector.Single(_)      => Factual.Size.Single
-    case MaybeVector.Multiple(_, _) => Factual.Size.Multiple
+  lazy val size: Factual.Size =
+    // Mark before computing so a self-referential `value.getThunk` (which
+    // can resolve a Dependency back to this same FactDefinition during
+    // recursive derived rules) sees the marker via the dictionary and
+    // short-circuits its own `fact.size` check — see
+    // Expression.dependencies.thunk. Without this, Scala's lazy-val init
+    // latch deadlocks on the recursive access.
+    dictionary.sizeInProgress.add(path)
+    try
+      value.getThunk match
+        case MaybeVector.Single(_)      => Factual.Size.Single
+        case MaybeVector.Multiple(_, _) => Factual.Size.Multiple
+    finally dictionary.sizeInProgress.remove(path)
 
   @JSExport
   def abstractPath: Path = path
@@ -154,10 +172,11 @@ object FactDefinition:
       limits: Factual ?=> Seq[Limit],
       rawXml: NodeSeq,
       dictionary: FactDictionary,
+      config: Option[FactConfigTrait] = None,
   ): FactDefinition =
     require(path.isAbstract)
 
-    val definition = new FactDefinition(cnBuilder, path, limits, dictionary)
+    val definition = new FactDefinition(cnBuilder, path, limits, dictionary, config)
     dictionary.addDefinition(definition)
     dictionary.addDefinitionAsNodes(path, rawXml)
 
@@ -201,4 +220,4 @@ object FactDefinition:
         Seq.empty
 
     val dictionary = summon[FactDictionary]
-    this(cnBuilder, Path(e.path), limits, e.node, dictionary)
+    this(cnBuilder, Path(e.path), limits, e.node, dictionary, Some(e))

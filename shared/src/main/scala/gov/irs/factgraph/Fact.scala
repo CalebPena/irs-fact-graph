@@ -33,9 +33,20 @@ final class Fact(
       return MaybeVector(result).asInstanceOf[MaybeVector[Result[value.Value]]]
     }
 
-    graph.resultCache
-      .getOrElseUpdate(path, value.get)
-      .asInstanceOf[MaybeVector[Result[value.Value]]]
+    // Cycle break: a recursive derived fact whose runtime chain loops back
+    // through `path` is reported as Incomplete instead of stack-overflowing.
+    // Downstream `Any`/`All`/etc. fold Incomplete into their result like any
+    // other unknown, so a cycle just leaves the answer "not yet known."
+    if (graph.inProgress.contains(path)) {
+      return MaybeVector(Result.Incomplete)
+        .asInstanceOf[MaybeVector[Result[value.Value]]]
+    }
+    graph.inProgress.add(path)
+    try
+      graph.resultCache
+        .getOrElseUpdate(path, value.get)
+        .asInstanceOf[MaybeVector[Result[value.Value]]]
+    finally graph.inProgress.remove(path)
 
   override def getThunk: MaybeVector[Thunk[Result[value.Value]]] =
     value.getThunk

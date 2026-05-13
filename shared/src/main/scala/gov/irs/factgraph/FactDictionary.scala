@@ -21,6 +21,18 @@ class FactDictionary:
 
   private val definitions: mutable.Map[Path, FactDefinition] = mutable.Map()
   private val definitionsAsNodes: mutable.Map[Path, NodeSeq] = mutable.Map()
+  // Set of FactDefinition paths whose `size` lazy val is currently
+  // initializing. Read by `Expression.dependencies.thunk` so it can
+  // short-circuit a self-referential `fact.size` check that would otherwise
+  // deadlock on the lazy val's init latch. See FactDefinition.size.
+  private[factgraph] val sizeInProgress: mutable.Set[Path] = mutable.Set()
+  // Same idea for `value`. Read by Dependency.apply so a self-targeting
+  // Dependency built *during* its host fact's value-lazy-val init can
+  // produce a typed stub instead of reentering its own initialization,
+  // while a self-targeting Dependency built *outside* any init (e.g. tests
+  // that call CompNode.fromDerivedConfig directly) still goes through the
+  // normal resolution path.
+  private[factgraph] val valueInProgress: mutable.Set[Path] = mutable.Set()
   private var frozen: Boolean = false
   private var meta: MetaConfigTrait = Meta.empty()
 
