@@ -35,17 +35,34 @@ final class Fact(
 
     // Cycle break: a recursive derived fact whose runtime chain loops back
     // through `path` is reported as Incomplete instead of stack-overflowing.
-    // Downstream `Any`/`All`/etc. fold Incomplete into their result like any
-    // other unknown, so a cycle just leaves the answer "not yet known."
+    // Mark every path in the current call stack as "poisoned" — their
+    // computed result reflects this Incomplete return and must not be
+    // cached, since a later access from a different entry point may
+    // legitimately resolve to a different value.
     if (graph.inProgress.contains(path)) {
+      graph.inProgress.foreach(graph.cycleAffected.add)
       return MaybeVector(Result.Incomplete)
         .asInstanceOf[MaybeVector[Result[value.Value]]]
     }
+
+    // Skip the cache for cycle-affected paths — earlier evaluations
+    // baked in an Incomplete from a cycle break that no longer applies
+    // at this entry point.
+    if (!graph.cycleAffected.contains(path)) {
+      val cached = graph.resultCache.get(path)
+      if (cached.isDefined)
+        return cached.get.asInstanceOf[MaybeVector[Result[value.Value]]]
+    }
+
     graph.inProgress.add(path)
     try
-      graph.resultCache
-        .getOrElseUpdate(path, value.get)
-        .asInstanceOf[MaybeVector[Result[value.Value]]]
+      val result = value.get
+      if (!graph.cycleAffected.contains(path))
+        graph.resultCache.put(
+          path,
+          result.asInstanceOf[MaybeVector[Result[Any]]],
+        )
+      result.asInstanceOf[MaybeVector[Result[value.Value]]]
     finally graph.inProgress.remove(path)
 
   override def getThunk: MaybeVector[Thunk[Result[value.Value]]] =
