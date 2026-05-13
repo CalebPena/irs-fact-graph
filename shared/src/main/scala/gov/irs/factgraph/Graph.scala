@@ -30,6 +30,13 @@ class Graph(val dictionary: FactDictionary, val persister: Persister):
   // path (recursive derived fact whose chain forms a cycle in the runtime
   // data) breaks here and returns Incomplete instead of looping.
   private[factgraph] val inProgress: mutable.Set[Path] = mutable.Set()
+  // Paths whose computed value was poisoned by a cycle break. The cycle's
+  // `Incomplete` return propagates up and gets baked into every result in
+  // the current call chain — so we refuse to cache those, and refuse to
+  // read the cache for them on later accesses, forcing a fresh evaluation
+  // each time (a later access from a different entry point may resolve
+  // the cycle cleanly).
+  private[factgraph] val cycleAffected: mutable.Set[Path] = mutable.Set()
   private val overriddenFacts: mutable.Map[Path, WritableType] = mutable.Map()
 
   export root.apply
