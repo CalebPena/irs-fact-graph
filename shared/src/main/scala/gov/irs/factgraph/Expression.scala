@@ -145,11 +145,23 @@ enum Expression[A]:
     ): MaybeVector[Thunk[Result[A]]] =
       result match
         case Result(fact, complete) =>
-          val thunks = fact.size match
-            case Factual.Size.Single =>
+          // Self-referential Dependency in a derived rule: if the target's
+          // size lazy val is currently initializing on this same path, we
+          // can't ask for its size — it'd deadlock on the init latch. Treat
+          // it as Single (the overwhelmingly common case for recursive
+          // derived rules — a single Boolean / Dollar / etc.) and let the
+          // thunk's runtime evaluation handle the rest.
+          val sizeInProgress = fact match
+            case fd: FactDefinition => fd.dictionary.sizeInProgress.contains(fd.path)
+            case _                  => false
+          val thunks =
+            if (sizeInProgress)
               MaybeVector(Thunk(() => fact.get(0).asInstanceOf[Result[A]]))
-            case Factual.Size.Multiple =>
-              fact.getThunk.asInstanceOf[MaybeVector[Thunk[Result[A]]]]
+            else fact.size match
+              case Factual.Size.Single =>
+                MaybeVector(Thunk(() => fact.get(0).asInstanceOf[Result[A]]))
+              case Factual.Size.Multiple =>
+                fact.getThunk.asInstanceOf[MaybeVector[Thunk[Result[A]]]]
 
           if (!complete)
             for {

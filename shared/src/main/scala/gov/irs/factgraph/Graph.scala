@@ -26,6 +26,10 @@ class Graph(val dictionary: FactDictionary, val persister: Persister):
   private[factgraph] val factCache = mutable.HashMap[Path, Option[Fact]]()
   private[factgraph] val resultCache =
     mutable.HashMap[Path, MaybeVector[Result[Any]]]()
+  // Paths currently mid-evaluation. A `Fact.get` that re-enters its own
+  // path (recursive derived fact whose chain forms a cycle in the runtime
+  // data) breaks here and returns Incomplete instead of looping.
+  private[factgraph] val inProgress: mutable.Set[Path] = mutable.Set()
   private val overriddenFacts: mutable.Map[Path, WritableType] = mutable.Map()
 
   export root.apply
