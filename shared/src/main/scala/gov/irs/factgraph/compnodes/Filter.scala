@@ -16,12 +16,23 @@ object Filter extends CompNodeFactory:
   ): CompNode =
     fact(path :+ PathItem.Wildcard)(0) match
       case Result.Complete(collectionItem) =>
-        // Push the fact's parent (not the fact itself): pushing `fact` would
-        // make `^/x` resolve against the host whose `value` is mid-init,
-        // recursing through its own `lazy val`.
-        val outerScope: Factual = fact(PathItem.Parent)(0) match
-          case Result.Complete(p) => p
-          case _                  => fact
+        // Pick the right Factual to push onto the SelfStack so `^` inside
+        // the predicate resolves to the active scope just outside this
+        // Filter:
+        //   - Top-level Filter (fact is a FactDefinition whose `value` is
+        //     mid-init): we can't push `fact` itself — `^/x` would
+        //     re-enter its own `lazy val`. Push the fact's parent (the
+        //     surrounding collection-item view, e.g. /members/*).
+        //   - Nested Filter (fact is already a WithSelfStack from the
+        //     outer Filter): push the wrapper itself so `^` resolves to
+        //     the outer Filter's iterated item, not the outer
+        //     iteration's parent collection.
+        val outerScope: Factual = fact match
+          case _: WithSelfStack => fact
+          case _                =>
+            fact(PathItem.Parent)(0) match
+              case Result.Complete(p) => p
+              case _                  => fact
         val innerCtx = WithSelfStack.push(collectionItem, outerScope)
         CollectionNode(
           Expression

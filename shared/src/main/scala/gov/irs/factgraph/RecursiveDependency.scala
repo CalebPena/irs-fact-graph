@@ -9,7 +9,10 @@ import gov.irs.factgraph.compnodes.{
   RationalNode,
   StringNode,
 }
-import gov.irs.factgraph.definitions.fact.CompNodeConfigTrait
+import gov.irs.factgraph.definitions.fact.{
+  CommonOptionConfigTraits,
+  CompNodeConfigTrait,
+}
 
 // Build-time support for derived facts that reference themselves through
 // `<Dependency>`. The normal Dependency.apply flow resolves the target via
@@ -110,28 +113,84 @@ object RecursiveDependency:
       // Writable facts have a definite type from their writable config —
       // they shouldn't really show up as Dependency targets during build,
       // but handle them for symmetry.
-      tpe  <- cfg.writable.map(_.typeName).orElse(cfg.derived.flatMap(inferDerivedType))
+      tpe  <- cfg.writable
+        .map(_.typeName)
+        .orElse(
+          cfg.derived.flatMap(d =>
+            inferDerivedType(d, host, host.dictionary, Set(host.path)),
+          ),
+        )
     yield tpe
+
+  // Shape-preserving numeric ops: output type matches a numeric child. The
+  // immediate children may be wrapped in named tags (Subtract uses Minuend
+  // / Subtrahends, Divide uses Dividend / Divisors); for those we flatten
+  // one extra level when iterating.
+  private val NumericPropagators: Set[String] = Set(
+    "Add", "Subtract", "Multiply", "Divide",
+    "GreaterOf", "LesserOf", "Minimum", "Maximum", "Min", "Max",
+    "Round", "Floor", "Ceiling", "PayrollMonthsBetween",
+  )
+  private val WrapperTagNames: Set[String] = Set(
+    "Minuend", "Subtrahends", "Dividend", "Divisors", "Multiplicand",
+    "Left", "Right",
+  )
 
   private def inferDerivedType(
       cfg: CompNodeConfigTrait,
+      host: FactDefinition,
+      dict: FactDictionary,
+      visited: Set[Path],
   ): Option[String] =
     FixedTypes.get(cfg.typeName).orElse {
       cfg.typeName match
         case "Switch" =>
-          // Pick the first Case's Then branch and recurse into its first
-          // non-Dependency child. Dependency children would re-enter type
-          // inference; for the recursive case we know they share the
-          // Switch's overall type so any sibling branch works.
+          // Try every Then branch's first child until one yields a type.
           cfg.children.iterator
             .filter(_.typeName == "Case")
             .flatMap(_.children.iterator)
             .filter(_.typeName == "Then")
             .flatMap(_.children.iterator)
-            .find(_.typeName != "Dependency")
-            .flatMap(inferDerivedType)
+            .map(child => inferDerivedType(child, host, dict, visited))
+            .collectFirst { case Some(t) => t }
+
+        case t if NumericPropagators.contains(t) =>
+          // Type comes from children. Walk past any wrapper tags
+          // (Minuend, Dividend, …) and try every direct child until one
+          // resolves to a concrete type.
+          flattenChildren(cfg).iterator
+            .map(child => inferDerivedType(child, host, dict, visited))
+            .collectFirst { case Some(t2) => t2 }
+
+        case "Dependency" =>
+          // Resolve target via the dictionary and recurse. Skip targets
+          // we're already inferring (cycle in the type-inference walk
+          // back to the host or another fact mid-resolution).
+          for
+            rawPath <- cfg.getOptionValue(CommonOptionConfigTraits.PATH)
+            resolved <- resolveAbstractPath(host, Path(rawPath))
+            if !visited.contains(resolved)
+            target <- dict(resolved)
+            tcfg <- target.config
+            tpe <- tcfg.writable
+              .map(_.typeName)
+              .orElse(
+                tcfg.derived.flatMap(d =>
+                  inferDerivedType(d, target, dict, visited + resolved),
+                ),
+              )
+          yield tpe
+
         case _ => None
     }
+
+  private def flattenChildren(
+      cfg: CompNodeConfigTrait,
+  ): Iterable[CompNodeConfigTrait] =
+    cfg.children.flatMap(c =>
+      if (WrapperTagNames.contains(c.typeName)) c.children
+      else Seq(c),
+    )
 
   // Build a typed CompNode wrapping `Expression.Dependency(path)`. Returns
   // None when we don't have a CompNode constructor registered for the
