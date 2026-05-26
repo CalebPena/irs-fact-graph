@@ -282,9 +282,17 @@ enum Expression[A]:
   def collect[X](path: Path, x: Expression[X], op: CollectOperator[A, X])(using
       fact: Factual,
   ): Result[A] =
-    val outerScope: Factual = fact(PathItem.Parent)(0) match
-      case Result.Complete(p) => p
-      case _                  => fact
+    // Mirror Filter.apply's build-time choice: at runtime `fact` is a
+    // Fact (top-level) or a WithSelfStack (nested filter). For top-level
+    // we want `^` to land at the surrounding collection-item view, so we
+    // push `fact`'s parent. For a nested filter we want `^` to land at
+    // the *outer* filter's iteration item, so we push `fact` itself.
+    val outerScope: Factual = fact match
+      case _: WithSelfStack => fact
+      case _                =>
+        fact(PathItem.Parent)(0) match
+          case Result.Complete(p) => p
+          case _                  => fact
 
     val vect = for {
       item <- fact(path :+ PathItem.Wildcard)
